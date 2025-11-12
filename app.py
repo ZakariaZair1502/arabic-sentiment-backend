@@ -5,31 +5,62 @@ import requests
 import re
 import torch
 import os
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
-os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 app = Flask(__name__)
 CORS(app)
 
 
+
+
+MODEL_DIR = "./compressed_model"
+MODEL_FILE = "model.safetensors"
+GOOGLE_DRIVE_FILE_ID  = "1BKtAnGSfZ33E6sUW3uDVT5kgZchzUHtJ"
 # --- Load the Darija Sentiment Analysis Model ---
 tokenizer = None
 model = None
 sentiment_analyzer = None
 id_to_label = {}
 
-try:
-    model_path = "./compressed_model"
+def download_from_google_drive(file_id, destination):
+    URL = "https://docs.google.com/uc?export=download"
 
-    # Load tokenizer from local folder
+    session = requests.Session()
+    response = session.get(URL, params={'id': file_id}, stream=True)
+    token = None
+
+    # Check for warning token
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            token = value
+            break
+
+    if token:
+        params = {'id': file_id, 'confirm': token}
+        response = session.get(URL, params=params, stream=True)
+
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(chunk_size=32768):
+            if chunk:
+                f.write(chunk)
+
+
+
+try:
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    model_path = os.path.join(MODEL_DIR, MODEL_FILE)
+
+    # --- Download model if missing ---
+    if not os.path.exists(model_path):
+        download_from_google_drive(GOOGLE_DRIVE_FILE_ID, model_path)
+
     tokenizer = AutoTokenizer.from_pretrained(
-        model_path,
+        MODEL_DIR,
         do_lower_case=True,
         use_fast=True
     )
 
     # Load model on CPU (no GPU)
     model = AutoModelForSequenceClassification.from_pretrained(
-        model_path,
+        MODEL_DIR,
         torch_dtype=torch.float32,   # always use float32 on CPU
         device_map=None              # no automatic GPU mapping
     )
