@@ -4,22 +4,12 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipe
 import requests
 import re
 import torch
-import torch_directml
-
+import os
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 app = Flask(__name__)
 CORS(app)
 
-# --- Initialize DirectML device ---
-try:
-    if torch_directml.is_available():
-        dml_device = torch_directml.device()
-        print(f"DirectML device detected: {dml_device}. Using DirectML for inference.")
-    else:
-        dml_device = "cpu"
-        print("DirectML not available. Falling back to CPU for inference.")
-except Exception as e:
-    dml_device = "cpu"
-    print(f"Error initializing DirectML: {e}. Falling back to CPU for inference.")
 
 # --- Load the Darija Sentiment Analysis Model ---
 tokenizer = None
@@ -28,22 +18,30 @@ sentiment_analyzer = None
 id_to_label = {}
 
 try:
-    model_name = "BenhamdaneNawfal/sentiment-analysis-darija"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(model_name)
-    
-    if dml_device != "cpu":
-        model = model.to(dml_device)
-        print(f"Model moved to DirectML device: {dml_device}")
-    else:
-        print("Model staying on CPU as DirectML is not available.")
+    model_path = "./compressed_model"
 
+    # Load tokenizer from local folder
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_path,
+        do_lower_case=True,
+        use_fast=True
+    )
+
+    # Load model on CPU (no GPU)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_path,
+        torch_dtype=torch.float32,   # always use float32 on CPU
+        device_map=None              # no automatic GPU mapping
+    )
+
+    # Create CPU pipeline
     sentiment_analyzer = pipeline(
         "sentiment-analysis",
         model=model,
-        tokenizer=tokenizer
-    )# type: ignore
-    print(f"Darija Sentiment Analysis model '{model_name}' loaded successfully!")
+        tokenizer=tokenizer,
+        device=-1                    # force CPU
+    )
+    print(f"Darija Sentiment Analysis model loaded successfully!")
     
     id_to_label = model.config.id2label
     print(f"Model ID to Label mapping: {id_to_label}")
