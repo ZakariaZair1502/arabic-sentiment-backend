@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: arabic-sentiment-backend
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app"
