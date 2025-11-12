@@ -50,7 +50,10 @@ try:
 
     # --- Download model if missing ---
     if not os.path.exists(model_path):
+        print("Downloading model from Google Drive…")
         download_from_google_drive(GOOGLE_DRIVE_FILE_ID, model_path)
+        print("✅ Model downloaded successfully.")
+        
 
     tokenizer = AutoTokenizer.from_pretrained(
         MODEL_DIR,
